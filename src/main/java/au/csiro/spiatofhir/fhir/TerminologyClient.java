@@ -16,6 +16,9 @@
 
 package au.csiro.spiatofhir.fhir;
 
+import static org.hl7.fhir.dstu3.model.Bundle.BundleType.BATCH;
+import static org.hl7.fhir.dstu3.model.Bundle.HTTPVerb.POST;
+
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.rest.client.api.IGenericClient;
 import java.util.List;
@@ -35,6 +38,7 @@ public class TerminologyClient {
   private final IGenericClient client;
 
   public TerminologyClient(FhirContext fhirContext, String serverBase) {
+    fhirContext.getRestfulClientFactory().setSocketTimeout(30 * 60 * 1000);
     client = fhirContext.newRestfulGenericClient(serverBase);
   }
 
@@ -68,7 +72,7 @@ public class TerminologyClient {
   public Bundle batchLookup(String system, List<String> codes, List<String> properties) {
     long start = System.nanoTime();
     Bundle bundle = new Bundle();
-    bundle.setType(Bundle.BundleType.BATCH);
+    bundle.setType(BATCH);
     for (String code : codes) {
       Parameters inParams = new Parameters();
       inParams.addParameter().setName("system").setValue(new UriType(system));
@@ -79,7 +83,7 @@ public class TerminologyClient {
       bundle.addEntry()
           .setResource(inParams)
           .getRequest()
-          .setMethod(Bundle.HTTPVerb.POST)
+          .setMethod(POST)
           .setUrl("CodeSystem/$lookup");
     }
     Bundle result = client
@@ -94,4 +98,19 @@ public class TerminologyClient {
     return result;
   }
 
+  /**
+   * Validates a Bundle of resources against their declared profiles, returning a Bundle of
+   * OperationOutcome resources.
+   */
+  public OperationOutcome validateBundle(Bundle bundle) {
+    long start = System.nanoTime();
+    OperationOutcome result = (OperationOutcome) client.validate().resource(bundle).execute()
+        .getOperationOutcome();
+    double elapsedMs = TimeUnit.MILLISECONDS
+        .convert(System.nanoTime() - start, TimeUnit.NANOSECONDS);
+    logger.debug(
+        "Executed batch validation of " + bundle.getEntry().size() + " resources in " +
+            String.format("%.1f", elapsedMs) + " ms");
+    return result;
+  }
 }

@@ -24,6 +24,7 @@ import ca.uhn.fhir.parser.IParser;
 import java.io.File;
 import java.io.FileWriter;
 import java.text.SimpleDateFormat;
+import java.util.stream.Collectors;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.Mojo;
@@ -31,6 +32,9 @@ import org.apache.maven.plugins.annotations.Parameter;
 import org.fhir.ucum.UcumEssenceService;
 import org.fhir.ucum.UcumService;
 import org.hl7.fhir.dstu3.model.Bundle;
+import org.hl7.fhir.dstu3.model.OperationOutcome;
+import org.hl7.fhir.dstu3.model.OperationOutcome.OperationOutcomeIssueComponent;
+import org.hl7.fhir.dstu3.model.StringType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,10 +84,30 @@ public class SpiaToFhirMavenPlugin extends AbstractMojo {
       // Convert distribution into a FHIR Bundle.
       SpiaFhirBundle spiaFhirBundle = new SpiaFhirBundle(
           fhirContext,
+          terminologyClient,
           spiaDistribution,
           publicationDateFormat.parse(publicationDate)
       );
       Bundle transformed = spiaFhirBundle.getBundle();
+
+      // Validate the Bundle and log any issues.
+      OperationOutcome result = spiaFhirBundle.validateBundle();
+      for (OperationOutcomeIssueComponent issue : result.getIssue()) {
+        String message =
+            "Validation issue: " + issue.getDiagnostics() + "(" + issue.getLocation().stream()
+                .map(StringType::toString).collect(Collectors.joining(", "));
+        switch (issue.getSeverity()) {
+          case ERROR:
+          case FATAL:
+            logger.error(message);
+            break;
+          case WARNING:
+            logger.warn(message);
+            break;
+          default:
+            logger.info(message);
+        }
+      }
 
       // Encode the Bundle to JSON and write to the output path.
       IParser jsonParser = fhirContext.newJsonParser();

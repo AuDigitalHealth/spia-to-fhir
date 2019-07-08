@@ -31,6 +31,7 @@ import java.util.List;
 import org.fhir.ucum.UcumException;
 import org.hl7.fhir.dstu3.model.Bundle;
 import org.hl7.fhir.dstu3.model.CodeSystem;
+import org.hl7.fhir.dstu3.model.OperationOutcome;
 import org.hl7.fhir.dstu3.model.Resource;
 
 /**
@@ -40,14 +41,18 @@ public class SpiaFhirBundle {
 
   private final SpiaDistribution spiaDistribution;
   private final FhirContext fhirContext;
+  private final TerminologyClient terminologyClient;
   private final Date publicationDate;
   private Bundle bundle;
 
-  public SpiaFhirBundle(FhirContext fhirContext, SpiaDistribution spiaDistribution,
+  public SpiaFhirBundle(FhirContext fhirContext,
+      TerminologyClient terminologyClient,
+      SpiaDistribution spiaDistribution,
       Date publicationDate)
       throws IOException, ValidationException, UcumException {
     this.spiaDistribution = spiaDistribution;
     this.fhirContext = fhirContext;
+    this.terminologyClient = terminologyClient;
     this.publicationDate = publicationDate;
     transform();
   }
@@ -146,6 +151,10 @@ public class SpiaFhirBundle {
 
     // Set the Bundle type to `collection`.
     bundle.setType(Bundle.BundleType.COLLECTION);
+  }
+
+  public OperationOutcome validateBundle() {
+    return terminologyClient.validateBundle(bundle);
   }
 
   /**
